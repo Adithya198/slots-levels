@@ -29,7 +29,7 @@
     "upgrades": {
         "reel_bias": {
             "cost": 30,
-            "effect": "double probability of a given symbol in chosen reel"
+            "effect": "double probability of a chosen symbol in chosen reel"
         },
         "extra_spins": {
             "cost": 20,

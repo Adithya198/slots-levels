@@ -1,20 +1,18 @@
 import json
 import numpy as np
-from engine import SlotGame  # assuming engine.py is in src/
+import pandas as pd
+from engine import SlotGame
 from tqdm import tqdm
 
 def baseline_policy(game: SlotGame):
-    # Never buy upgrades, always continue until max rounds or fail
-    return None  # no upgrade purchase
+    return None
 
 def aggressive_policy(game: SlotGame):
-    # Buy reel_bias if affordable on first round
     if game.round == 1 and game.credits >= game.config["upgrades"]["reel_bias"]["cost"]:
         return "reel_bias"
     return None
 
 def conservative_policy(game: SlotGame):
-    # Buy bar_boost if affordable on round 1, else cash out after first bonus
     if game.round == 1 and game.credits >= game.config["upgrades"]["bar_boost"]["cost"]:
         return "bar_boost"
     if game.round > 1:
@@ -31,7 +29,6 @@ def adaptive_ai_policy(game: SlotGame):
     if game.round == 1 and game.credits >= game.config["upgrades"]["reel_bias"]["cost"]:
         return "reel_bias"
 
-    # Use last round's bar progress now!
     if game.last_bar_progress < 0.5 and game.credits >= game.config["upgrades"]["extra_spins"]["cost"]:
         return "extra_spins"
 
@@ -65,7 +62,7 @@ def run_single_sim(config_path, policy_fn):
         if action == "cashout":
             break
         elif action is not None and action in game.config["upgrades"]:
-            msg = game.buy_upgrade(action)
+            game.buy_upgrade(action)
             results["upgrades_bought"].append(action)
 
     results["final_credits"] = game.credits
@@ -79,35 +76,59 @@ def batch_simulate(config_path, policy_fn, num_runs=1000):
         all_results.append(res)
     return all_results
 
+
 def summarize_results(results):
     final_credits = np.array([r["final_credits"] for r in results])
     rounds_played = np.array([r["rounds_played"] for r in results])
     bonuses = np.array([r["bonuses_triggered"] for r in results])
 
-    print(f"Runs: {len(results)}")
-    print(f"Average final credits: {final_credits.mean():.2f}")
-    print(f"Median final credits: {np.median(final_credits):.2f}")
-    print(f"Std dev final credits: {final_credits.std():.2f}")
-    print(f"Average rounds played: {rounds_played.mean():.2f}")
-    print(f"Average bonuses triggered: {bonuses.mean():.2f}")
+    return {
+        "runs": len(results),
+        "avg_final_credits": final_credits.mean(),
+        "median_final_credits": np.median(final_credits),
+        "std_final_credits": final_credits.std(),
+        "avg_rounds_played": rounds_played.mean(),
+        "avg_bonuses_triggered": bonuses.mean(),
+    }
+
 
 if __name__ == "__main__":
     config_path = "D://pythonprojects/game_math/slot-game-project-1/data/example_config.json"
 
+    all_summary = []
+
     print("Running baseline policy...")
     baseline_results = batch_simulate(config_path, baseline_policy, num_runs=1000)
-    summarize_results(baseline_results)
+    summary = summarize_results(baseline_results)
+    summary["policy"] = "baseline"
+    all_summary.append(summary)
+    print(summary)
 
     print("\nRunning aggressive policy...")
     aggressive_results = batch_simulate(config_path, aggressive_policy, num_runs=1000)
-    summarize_results(aggressive_results)
+    summary = summarize_results(aggressive_results)
+    summary["policy"] = "aggressive"
+    all_summary.append(summary)
+    print(summary)
 
     print("\nRunning conservative policy...")
     conservative_results = batch_simulate(config_path, conservative_policy, num_runs=1000)
-    summarize_results(conservative_results)
+    summary = summarize_results(conservative_results)
+    summary["policy"] = "conservative"
+    all_summary.append(summary)
+    print(summary)
 
     print("\nRunning adaptive AI policy...")
     adaptive_results = batch_simulate(config_path, adaptive_ai_policy, num_runs=1000)
-    summarize_results(adaptive_results)
+    summary = summarize_results(adaptive_results)
+    summary["policy"] = "adaptive_ai"
+    all_summary.append(summary)
+    print(summary)
+
+    # Export to CSV
+    df = pd.DataFrame(all_summary)
+    output_path = "D://pythonprojects/game_math/slot-game-project-1/sim_results.csv"
+    df.to_csv(output_path, index=False)
+    print(f"\nSimulation results saved to: {output_path}")
 
 
