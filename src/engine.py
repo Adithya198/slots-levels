@@ -5,9 +5,16 @@ from tqdm import tqdm
 
 
 class SlotGame:
-    def __init__(self, config_path):
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)
+    def __init__(self, config_path=None, config_dict=None):
+        if config_dict is not None:
+            self.config = config_dict
+            self.config_path = None  # optional, since config is already loaded
+        elif config_path is not None:
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+            self.config_path = config_path
+        else:
+            raise ValueError("Must provide either config_path or config_dict")
 
         self.credits = self.config["credits_start"]
         self.spins_per_round = self.config["spins_per_round"]
@@ -24,7 +31,7 @@ class SlotGame:
 
         # State
         self.bar_progress = 0.0
-        self.last_bar_progress = 0.0  # store last round bar progress
+        self.last_bar_progress = 0.0
         self.bar_target = 1.0
         self.round = 1
         self.max_rounds = 5
@@ -32,7 +39,8 @@ class SlotGame:
             "reel_bias": False,
             "extra_spins": 0,
             "bar_boost": 0,
-            "bonus_multiplier_upgrade": False,}
+            "bonus_multiplier_upgrade": False,
+        }
         self.reel_bias_symbol = None
 
 

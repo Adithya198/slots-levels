@@ -1,67 +1,117 @@
 # stats.py
 import itertools
 import pandas as pd
-from engine import SlotGame 
+from engine import SlotGame
+from itertools import chain, combinations
+import copy
 
-def export_spin_stats(config_path, filename="D://pythonprojects/game_math/slot-game-project-1/outputs/spin_stats.xlsx"):
-    game = SlotGame(config_path)
-    symbols = game.symbols
-    cols = game.cols
-    base_multipliers = game.base_multipliers
-    bar_fill_per_match = game.bar_fill_per_match
-    symbol_probs = game.symbol_probs
+def all_upgrade_combos():
+    upgrades = ["reel_bias", "extra_spins", "bar_boost", "bonus_multiplier_upgrade"]
+    return chain.from_iterable(combinations(upgrades, r) for r in range(len(upgrades)+1))
 
-    all_combinations = list(itertools.product(symbols, repeat=cols))
-    rows = []
+def compute_spin_probability(outcome, game):
+    """
+    Deterministic probability calculation for a spin given the current game state.
+    """
+    counts = {s: 0 for s in game.symbols}
+    prob = 1.0
+    adjusted_probs = copy.deepcopy(game.symbol_probs)
 
-    for outcome in all_combinations:
-        adjusted_probs = dict(symbol_probs)  # fresh copy for each outcome
+    for col, sym in enumerate(outcome):
+        reel_probs = copy.deepcopy(adjusted_probs)
+        if game.upgrades["reel_bias"] and game.reel_bias_symbol:
+            reel_probs[game.reel_bias_symbol] *= 2
+
+        total_prob = sum(reel_probs.values())
+        norm_probs = {s: p / total_prob for s, p in reel_probs.items()}
+
+        prob *= norm_probs[sym]
+        counts[sym] += 1
+
+        # Penalize repeated symbols
+        if counts[sym] == 2:
+            adjusted_probs[sym] /= 2
+        elif counts[sym] >= 3:
+            adjusted_probs[sym] /= 4
+
+    return prob
+
+def enumerate_round_outcomes(game, round_num=1, max_rounds=3, path=None, prob_path=1.0, upgrade_path=None):
+    if path is None:
+        path = []
+
+    all_results = []
+
+    # Apply upgrades for this branch
+    for u in upgrade_path or []:
+        game.buy_upgrade(u)
+
+    for outcome in itertools.product(game.symbols, repeat=game.cols):
+        g = SlotGame(config_dict=game.config)  # clone
+        g.credits = game.credits
+        g.bar_progress = game.bar_progress
+        g.last_bar_progress = game.last_bar_progress
+        g.round = game.round
+        g.upgrades = game.upgrades.copy()
+
+        # Spin outcome
+        counts = {s: outcome.count(s) for s in g.symbols}
+        filled = g.evaluate_spin(list(outcome))
+
+        # Compute probability for this outcome
         prob = 1.0
-        counts = {s: 0 for s in symbols}
-
-        for sym in outcome:
+        adjusted_probs = g.symbol_probs.copy()
+        for s in outcome:
             total_prob = sum(adjusted_probs.values())
-            norm_probs = {s: p / total_prob for s, p in adjusted_probs.items()}
-            prob *= norm_probs[sym]
-            counts[sym] += 1
-            if counts[sym] == 2:
-                adjusted_probs[sym] /= 2
-            elif counts[sym] >= 3:
-                adjusted_probs[sym] /= 4
+            norm_probs = {k: v / total_prob for k, v in adjusted_probs.items()}
+            prob *= norm_probs[s]
+            # adjust for repeats
+            if counts[s] == 2:
+                adjusted_probs[s] /= 2
+            elif counts[s] >= 3:
+                adjusted_probs[s] /= 4
 
-        # Calculate bar fill increment (no upgrades)
-        bar_fill = 0.0
-        matched = False
+        full_prob = prob_path * prob
+        new_path = path + ["".join(outcome)]
 
-        for sym, count in counts.items():
-            if count == 3:
-                bar_fill = base_multipliers[sym] * bar_fill_per_match["3_same"]
-                matched = True
-                break
+        # Check if bonus triggered
+        bonus = g.bar_progress >= g.bar_target
 
-        if not matched:
-            for sym, count in counts.items():
-                if count == 2:
-                    bar_fill = base_multipliers[sym] * bar_fill_per_match["2_same"]
-                    matched = True
-                    break
+        if round_num < max_rounds and bonus:
+            g.bar_target += 1.0
+            g.round += 1
+            # recurse
+            all_results.extend(enumerate_round_outcomes(
+                g,
+                round_num=round_num + 1,
+                max_rounds=max_rounds,
+                path=new_path,
+                prob_path=full_prob,
+                upgrade_path=upgrade_path
+            ))
+        else:
+            # end branch
+            all_results.append({
+                "path": new_path,
+                "probability": full_prob,
+                "round": round_num,
+                "upgrades": upgrade_path,
+                "bar_progress": g.bar_progress,
+            })
 
-        if not matched:
-            singles = [s for s, c in counts.items() if c == 1]
-            if singles:
-                best_sym = max(singles, key=lambda s: base_multipliers[s])
-                bar_fill = base_multipliers[best_sym] * bar_fill_per_match["1_same"]
+    return all_results
 
-        rows.append({
-            "Outcome": ''.join(outcome),
-            "Probability": prob,
-            "3_same": any(count == 3 for count in counts.values()),
-            "2_same": any(count == 2 for count in counts.values()),
-            "1_same": sum(1 for count in counts.values() if count == 1) > 0 and not any(count >= 2 for count in counts.values()),
-            "Bar_fill_increment": bar_fill,
-        })
 
-    df = pd.DataFrame(rows)
-    df.sort_values("Probability", ascending=False, inplace=True)
+def export_multi_round_stats(config_path, filename="D://pythonprojects/game_math/slot-game-project-1/outputs/multi_round_stats.xlsx"):
+    all_results = []
+
+    for upgrade_combo in all_upgrade_combos():
+        game = SlotGame(config_path)
+        results = enumerate_round_outcomes(game, round_num=1, max_rounds=3, path=None, prob_path=1.0, upgrade_path=list(upgrade_combo))
+        all_results.extend(results)
+
+    df = pd.DataFrame(all_results)
+    df.sort_values("probability", ascending=False, inplace=True)
     df.to_excel(filename, index=False)
-    print(f"Exported conditional spin stats to {filename}")
+    print(f"Exported multi-round stats to {filename}")
+
