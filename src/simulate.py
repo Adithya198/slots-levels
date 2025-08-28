@@ -107,7 +107,7 @@ def run_single_game(config_dict, strategy_tuple, verbose=False):
             break
 
     if verbose:
-        print(f"\n--- Game completed ---")
+        print(f"\nGame completed")
         print(f"Final credits: {game.credits:.2f}")
         print(f"Rounds played: {rounds_played}")
         print(f"Total upgrade costs: {upgrade_costs_paid:.2f}")
