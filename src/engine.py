@@ -1,4 +1,4 @@
-# engine.py
+# engine.py 
 import json
 import random
 
@@ -43,7 +43,7 @@ class SlotGame:
         self.upgrades = {
             "reel_bias": False,
             "extra_spins": False,               # one-time +2 spins when True
-            "bonus_multiplier_upgrade": False,  # one-time +0.5 to multipliers
+            "bonus_multiplier_upgrade": False,  # one-time +1.0 to multipliers (UPDATED)
         }
 
         # Track per-round upgrade purchase restriction
@@ -103,9 +103,9 @@ class SlotGame:
         return probs
 
     def get_effective_multipliers(self):
-        """Get current multipliers with all upgrades applied"""
+        """Get current multipliers with all upgrades applied (UPDATED: +1.0 instead of +0.5)"""
         if self.upgrades["bonus_multiplier_upgrade"]:
-            return {s: val + 0.5 for s, val in self.base_multipliers.items()}
+            return {s: val + 1.0 for s, val in self.base_multipliers.items()} 
         return dict(self.base_multipliers)
 
     def spin_reels(self):
@@ -131,7 +131,7 @@ class SlotGame:
             if count == 2:
                 return "2_same"
         
-        # All different (or no matches worth counting)
+        # All different 
         return "1_same"
 
     def evaluate_spin(self, row):
@@ -264,3 +264,25 @@ class SlotGame:
                 break
 
         print(f"Game over. Final credits: {self.credits:.2f}")
+
+    # Add silent version for simulation
+    def play_round_silent(self):
+        """
+        Plays one round silently (no print output) and returns True if bonus triggered.
+        """
+        self.bar_progress = 0.0
+        self.upgrade_bought_this_round = False
+
+        spins_this_round = self.spins_per_round + (2 if self.upgrades["extra_spins"] else 0)
+
+        for spin_num in range(1, spins_this_round + 1):
+            row = self.spin_reels()
+            payout, filled = self.evaluate_spin(row)
+
+        bonus_triggered = False
+        if self.bar_progress >= self.bar_target:
+            multiplier = float(self.base_bar_bonus_multiplier)
+            self.credits *= multiplier
+            bonus_triggered = True
+
+        return bonus_triggered

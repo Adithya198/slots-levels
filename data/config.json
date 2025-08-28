@@ -29,16 +29,16 @@
     "bar_bonus_multiplier": 2.0,
     "upgrades": {
         "reel_bias": {
-            "cost": 20,
+            "cost": 50,
             "effect": "increase the probability of D by 5% and E by 10%, decrease the probability of A by 10% and B by 5%"
         },
         "extra_spins": {
-            "cost": 20,
+            "cost": 50,
             "effect": "+2 spins per round"
         },
         "bonus_multiplier_upgrade": {
-            "cost": 30,
-            "effect": "increase all symbol multipliers by 0.5"
+            "cost": 50,
+            "effect": "increase all symbol multipliers by 1"
         }
     }
 }

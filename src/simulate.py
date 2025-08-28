@@ -31,7 +31,7 @@ def run_single_game(config_dict, strategy_tuple, verbose=False):
     round_results = []
 
     if verbose:
-        print(f"\n--- Starting game with strategy: {format_strategy_name(strategy_tuple)} ---")
+        print(f"\n Starting game with strategy: {format_strategy_name(strategy_tuple)} ---")
 
     while game.round <= game.max_rounds:
         round_start_credits = game.credits
@@ -67,7 +67,7 @@ def run_single_game(config_dict, strategy_tuple, verbose=False):
 
         # Play the round
         round_bar_start = game.bar_progress
-        bonus = game.play_round_silent()  # Use silent version to control output
+        bonus = game.play_round_silent()
         round_bar_end = game.bar_progress
         
         total_spins += spins_this_round
@@ -99,7 +99,7 @@ def run_single_game(config_dict, strategy_tuple, verbose=False):
 
         # Move to next round
         if game.round < game.max_rounds:
-            game.bar_target += 0.5
+            game.bar_target += 0.5  # +0.5 progression per round
             game.round += 1
         else:
             if verbose:
@@ -122,7 +122,8 @@ def run_single_game(config_dict, strategy_tuple, verbose=False):
         "upgrades_purchased": upgrades_purchased,
         "round_results": round_results,
         "strategy": format_strategy_name(strategy_tuple),
-        "upgrade_combination": format_upgrade_combo_name(list(strategy_tuple))
+        "upgrade_combination": format_upgrade_combo_name(list(strategy_tuple)),
+        "completed_all_rounds": rounds_played >= 3
     }
 
 
@@ -144,7 +145,7 @@ def simulate_strategy(config_dict, strategy_tuple, num_runs=1000, seed=None, ver
     results = []
     strategy_name = format_strategy_name(strategy_tuple)
     
-    for i in tqdm(range(num_runs), desc=f"Simulating {strategy_name}"):
+    for i in tqdm(range(num_runs), desc=f"Simulating {strategy_name}", leave=False):
         verbose = verbose_sample and i == 0
         res = run_single_game(config_dict, strategy_tuple, verbose=verbose)
         results.append(res)
@@ -169,7 +170,8 @@ def simulate_strategy(config_dict, strategy_tuple, num_runs=1000, seed=None, ver
         # Performance statistics
         "avg_rounds_played": df["rounds_played"].mean(),
         "std_rounds_played": df["rounds_played"].std(),
-        "completion_rate": (df["rounds_played"] == 5).mean(),  # Assuming 5 max rounds
+        "completion_rate": df["completed_all_rounds"].mean(),
+        "success_rate": df["completed_all_rounds"].mean(),  # Same as completion rate
         
         # Efficiency statistics
         "avg_total_spins": df["total_spins"].mean(),
@@ -182,8 +184,12 @@ def simulate_strategy(config_dict, strategy_tuple, num_runs=1000, seed=None, ver
         
         # Economic statistics
         "avg_upgrade_costs": df["upgrade_costs_paid"].mean(),
-        "net_credits_gained": df["final_credits"].mean() - 100,  # Assuming starting credits = 100
-        "roi": (df["final_credits"].mean() - 100) / 100 if 100 > 0 else 0,  # Return on investment
+        "net_credits_gained": df["final_credits"].mean() - 100,  # Starting credits = 100
+        "roi": (df["final_credits"].mean() - 100) / 100,  # Return on investment
+        
+        # Risk statistics
+        "failure_rate": 1 - df["completed_all_rounds"].mean(),
+        "credits_risk": df["final_credits"].std() / df["final_credits"].mean() if df["final_credits"].mean() > 0 else 0,
     }
     
     return stats, df
@@ -237,7 +243,7 @@ def run_comprehensive_simulation(config_dict, num_runs=1000, seed=42, output_dir
         # Summary sheet
         summary_df.to_excel(writer, sheet_name="Strategy Summary", index=False)
         
-        # Detailed results sheet (sample of data to avoid huge files)
+        # Detailed results sheet (sample to avoid huge files)
         sample_detailed = detailed_df.sample(min(10000, len(detailed_df))) if len(detailed_df) > 10000 else detailed_df
         sample_detailed.to_excel(writer, sheet_name="Sample Detailed Results", index=False)
     
@@ -250,19 +256,19 @@ def run_comprehensive_simulation(config_dict, num_runs=1000, seed=42, output_dir
     print(f"  - CSV: {csv_path}")
     
     # Print top performing strategies
-    print("\n=== TOP 5 STRATEGIES BY AVERAGE FINAL CREDITS ===")
+    print("\n TOP 5 STRATEGIES BY AVERAGE FINAL CREDITS ")
     top_credits = summary_df.nlargest(5, "avg_final_credits")[
-        ["strategy", "avg_final_credits", "completion_rate", "avg_rounds_played"]
+        ["strategy", "avg_final_credits", "completion_rate", "roi"]
     ]
     print(top_credits.to_string(index=False))
     
-    print("\n=== TOP 5 STRATEGIES BY COMPLETION RATE ===")
+    print("\n TOP 5 STRATEGIES BY COMPLETION RATE")
     top_completion = summary_df.nlargest(5, "completion_rate")[
         ["strategy", "completion_rate", "avg_final_credits", "avg_rounds_played"]
     ]
     print(top_completion.to_string(index=False))
     
-    print("\n=== TOP 5 STRATEGIES BY ROI ===")
+    print("\n TOP 5 STRATEGIES BY ROI ")
     top_roi = summary_df.nlargest(5, "roi")[
         ["strategy", "roi", "avg_final_credits", "net_credits_gained"]
     ]
@@ -306,12 +312,47 @@ def main():
     # Load configuration
     config_path = os.path.join("data", "example_config.json")
     
+    # If config file doesn't exist, create default config
+    if not os.path.exists(config_path):
+        os.makedirs("data", exist_ok=True)
+        default_config = {
+            "credits_start": 100,
+            "spins_per_round": 8,
+            "max_rounds": 3,
+            "initial_bar_target": 1.0,
+            "reels": {
+                "rows": 1,
+                "cols": 3,
+                "symbols": ["A", "B", "C", "D", "E"],
+                "multipliers": {"A": 2, "B": 3, "C": 4, "D": 5, "E": 6},
+                "probabilities": {"A": 0.2, "B": 0.2, "C": 0.2, "D": 0.2, "E": 0.2}
+            },
+            "bar_fill_per_match": {"3_same": 0.20, "2_same": 0.067, "1_same": 0},
+            "bar_bonus_multiplier": 2.0,
+            "upgrades": {
+                "reel_bias": {
+                    "cost": 50,
+                    "effect": "increase the probability of D by 5% and E by 10%, decrease the probability of A by 10% and B by 5%"
+                },
+                "extra_spins": {
+                    "cost": 50,
+                    "effect": "+2 spins per round"
+                },
+                "bonus_multiplier_upgrade": {
+                    "cost": 50,
+                    "effect": "increase all symbol multipliers by 1.0"
+                }
+            }
+        }
+        with open(config_path, "w") as f:
+            json.dump(default_config, f, indent=2)
+        print(f"Created default config at {config_path}")
+    
     try:
         with open(config_path, "r") as f:
             config_dict = json.load(f)
     except FileNotFoundError:
         print(f"Config file not found at {config_path}")
-        print("Please ensure the config file exists or update the path")
         return
     except json.JSONDecodeError as e:
         print(f"Error parsing config file: {e}")
@@ -325,7 +366,8 @@ def main():
         output_dir="outputs"
     )
     
-    print("\nSimulation completed successfully!")
+    print("\nSimulation completed successfully")
+    print(f"Analyzed {len(summary_df)} strategies with {summary_df['num_runs'].iloc[0]} runs each")
 
 
 if __name__ == "__main__":
