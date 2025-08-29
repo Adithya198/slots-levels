@@ -28,6 +28,6 @@ config.json - Game parameters including symbols, probabilities, multipliers, and
 Game Mechanics
 Players start with 100 credits and must fill a progress bar each round to advance. The bar target increases each round (1.0 → 1.5 → 2.0). Three upgrades are available for purchase in rounds 2-3:
 
-Reel Bias (20 credits): Increases probability of high-value symbols
-Extra Spins (20 credits): +2 spins per round
-Bonus Multiplier (30 credits): +0.5 to all symbol multipliers
+Reel Bias (50 credits): Increases probability of high-value symbols
+Extra Spins (50 credits): +2 spins per round
+Bonus Multiplier (50 credits): +1 to all symbol multipliers
