@@ -49,9 +49,9 @@
 5. **Design Success Metrics**  
    - Strategic depth achieved: clear hierarchy (reel_bias > extra_spins > bonus_multiplier)  
    - Luck factor preserved: 30+pp theory-practice gaps ensure uncertainty remains  
-   - Player agency maintained: optimal strategies exist but don’t guarantee outcomes  
+   - While optimal strategies exist, they don’t guarantee outcomes  
 
 ---
 
-The analysis confirms the game achieves its **core design goal**: rewarding analytical thinking while preserving the uncertainty that defines gambling psychology. The persistent theory–practice gaps demonstrate that mathematical optimization cannot eliminate risk, keeping players engaged across multiple sessions.
+
 
